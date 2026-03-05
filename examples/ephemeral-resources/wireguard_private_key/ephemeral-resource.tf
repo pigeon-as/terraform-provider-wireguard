@@ -1,1 +1,1 @@
-ephemeral "wireguard_private_key" "node" {}
+ephemeral "wireguard_private_key" "example" {}

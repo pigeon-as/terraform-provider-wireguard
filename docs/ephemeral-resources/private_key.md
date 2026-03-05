@@ -11,18 +11,31 @@ Generates a random WireGuard X25519 key pair. Both keys are ephemeral and never 
 ## Example Usage
 
 ```terraform
-ephemeral "wireguard_private_key" "node" {}
+ephemeral "wireguard_private_key" "example" {}
 
-# Use the private key in a write-only argument (not stored in state):
-resource "wireguard_public_key" "node" {
-  private_key_wo         = ephemeral.wireguard_private_key.node.private_key
+resource "wireguard_public_key" "example" {
+  private_key_wo         = ephemeral.wireguard_private_key.example.private_key
   private_key_wo_version = 1
 }
 
-# Use the private key in a provisioner (not stored in state):
-resource "null_resource" "wg_config" {
+resource "terraform_data" "example" {
+  triggers_replace = wireguard_public_key.example.public_key
+
   provisioner "file" {
-    content     = "PrivateKey = ${ephemeral.wireguard_private_key.node.private_key}"
+    content = templatestring(
+      <<-WG
+      [Interface]
+      PrivateKey = $${private_key}
+
+      [Peer]
+      PublicKey  = $${peer_public_key}
+      AllowedIPs = 0.0.0.0/0
+      WG
+      , {
+        private_key     = ephemeral.wireguard_private_key.example.private_key
+        peer_public_key = wireguard_public_key.example.public_key
+      }
+    )
     destination = "/etc/wireguard/wg0.conf"
   }
 }

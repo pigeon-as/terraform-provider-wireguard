@@ -27,31 +27,26 @@ ephemeral "wireguard_private_key" ─── generates random X25519 key pair (ne
 ```hcl
 provider "wireguard" {}
 
-# One ephemeral private key per node.
-ephemeral "wireguard_private_key" "node" {
+ephemeral "wireguard_private_key" "example" {
   for_each = var.nodes
 }
 
-# Persist only the public key in state.
-resource "wireguard_public_key" "node" {
+resource "wireguard_public_key" "example" {
   for_each = var.nodes
 
-  private_key_wo         = ephemeral.wireguard_private_key.node[each.key].private_key
-  private_key_wo_version = var.wireguard_key_version  # bump to rotate all keys
+  private_key_wo         = ephemeral.wireguard_private_key.example[each.key].private_key
+  private_key_wo_version = var.wireguard_key_version
 }
 
-# Deploy wg0.conf via provisioner (private key flows through, never stored).
-resource "null_resource" "wg_config" {
+resource "terraform_data" "example" {
   for_each = var.nodes
 
-  triggers = {
-    key_version = var.wireguard_key_version
-  }
+  triggers_replace = wireguard_public_key.example[each.key].public_key
 
   provisioner "file" {
-    content     = templatefile("wg0.conf.tpl", {
-      private_key = ephemeral.wireguard_private_key.node[each.key].private_key
-      peers       = [for k, v in wireguard_public_key.node : { public_key = v.public_key, endpoint = var.nodes[k].endpoint } if k != each.key]
+    content     = templatefile("${path.module}/wg0.conf.tpl", {
+      private_key = ephemeral.wireguard_private_key.example[each.key].private_key
+      peers       = [for k, v in wireguard_public_key.example : { public_key = v.public_key, endpoint = var.nodes[k].endpoint } if k != each.key]
     })
     destination = "/etc/wireguard/wg0.conf"
   }
