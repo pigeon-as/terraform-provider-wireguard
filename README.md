@@ -27,6 +27,13 @@ ephemeral "wireguard_private_key" ─── generates random X25519 key pair (ne
 ```hcl
 provider "wireguard" {}
 
+variable "nodes" {
+  default = {
+    node1 = { endpoint = "10.0.0.1:51820" }
+    node2 = { endpoint = "10.0.0.2:51820" }
+  }
+}
+
 ephemeral "wireguard_private_key" "example" {
   for_each = var.nodes
 }
@@ -35,7 +42,7 @@ resource "wireguard_public_key" "example" {
   for_each = var.nodes
 
   private_key_wo         = ephemeral.wireguard_private_key.example[each.key].private_key
-  private_key_wo_version = var.wireguard_key_version
+  private_key_wo_version = 1
 }
 
 resource "terraform_data" "example" {
@@ -44,9 +51,12 @@ resource "terraform_data" "example" {
   triggers_replace = wireguard_public_key.example[each.key].public_key
 
   provisioner "file" {
-    content     = templatefile("${path.module}/wg0.conf.tpl", {
+    content = templatefile("${path.module}/wg0.conf.tpl", {
       private_key = ephemeral.wireguard_private_key.example[each.key].private_key
-      peers       = [for k, v in wireguard_public_key.example : { public_key = v.public_key, endpoint = var.nodes[k].endpoint } if k != each.key]
+      peers       = [for k, v in wireguard_public_key.example : {
+        public_key = v.public_key
+        endpoint   = var.nodes[k].endpoint
+      } if k != each.key]
     })
     destination = "/etc/wireguard/wg0.conf"
   }
